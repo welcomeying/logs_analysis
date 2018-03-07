@@ -6,8 +6,8 @@ import psycopg2
 """Query variables"""
 articles_query = """
 select articles.title, count(*) as views
-from articles join log on log.path
-like '%' || articles.slug || '%'
+from articles join log
+on log.path = concat('/article/', articles.slug)
 group by articles.title
 order by views desc limit 3;
 """
@@ -16,8 +16,8 @@ authors_query = """
 select authors.name, views
 from authors,
 (select articles.author, count(*) as views
-from articles join log on log.path
-like '%' || articles.slug || '%'
+from articles join log
+on log.path = concat('/article/', articles.slug)
 group by articles.author) as sub
 where authors.id = sub.author
 order by views desc;
@@ -36,7 +36,13 @@ order by rate desc;
 
 def connect():
     """Connect to the PostgreSQL database.  Returns a database connection."""
-    return psycopg2.connect("dbname=news")
+    try:
+        db = psycopg2.connect("dbname=news")
+        return db
+
+    except psycopg2.Error as e:
+        print "Unable to connect to database"
+        sys.exit(1)
 
 
 def topArticles():
@@ -45,6 +51,7 @@ def topArticles():
     c = conn.cursor()
     c.execute(articles_query)
     result = c.fetchall()
+    conn.close()
     print "***The most popular three articles of all time***"
     for i in result:
         print "\"" + i[0] + "\" -- " + str(i[1]) + " views"
@@ -56,6 +63,7 @@ def topAuthors():
     c = conn.cursor()
     c.execute(authors_query)
     result = c.fetchall()
+    conn.close()
     print "\n***The most popular article authors of all time***"
     for i in result:
         print i[0] + " -- " + str(i[1]) + " views"
@@ -67,6 +75,7 @@ def errorDays():
     c = conn.cursor()
     c.execute(errordays_query)
     result = c.fetchall()
+    conn.close()
     print "\n***Days with more than 1% of requests lead to errors***"
     for i in result:
         if i[1] > 1:
